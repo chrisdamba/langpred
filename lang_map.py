@@ -24,7 +24,6 @@ code_lang_map = {
     'ja': 'Japanese',
     'kk': 'Kazakh',
     'ko': 'Korean',
-    'lt': 'Lithuanian',
     'ms': 'Malay',
     'nl': 'Dutch',
     'no': 'Norwegian (Bokmal)',
