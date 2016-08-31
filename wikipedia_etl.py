@@ -9,8 +9,6 @@ Sample Application Usage:
 """
 
 import bz2
-import pageviewapi
-import pymongo
 import re
 import requests
 import sys
@@ -23,6 +21,7 @@ from shutil import copyfileobj
 # connect to database
 connection = MongoClient('localhost', 27017)
 
+# user test db
 db = connection.test
 
 # handle to wikipedia collection
@@ -44,15 +43,16 @@ def insert_top_articles():
 	wikipedia.remove()
 
 	for lang in code_lang_map.keys():
-		for month in range(1, 8):   
+		for month in range(1,8):   
 			try:
 				url = 'https://wikimedia.org/api/rest_v1/metrics/pageviews/top/{0}.wikipedia/all-access/2016/{1}/all-days'.format(lang, str(month).zfill(2))        
 				result = requests.get(url).json()
-
+				
 				if 'items' in result and len(result['items']) == 1:
 					r = result['items'][0]
-					r['lang'] = lang
-					ops.append(InsertOne(r))
+					for article in r['articles']:
+						article['lang'] = r['project'][:2]
+						ops.append(InsertOne(article))
 
 			except:
 				print('ERROR while fetching or parsing ' + url)
@@ -69,20 +69,17 @@ def get_top_articles(lang):
 	# initialize aggregation pipeline 
 	pipeline = [    
 		{ "$match": { "lang": lang } },
-		{ "$unwind": "$articles" },
 		{
 			"$group": {
-				"_id": {
-					"lang": "$lang",
-					"page": "$articles.article"
-				},
-				"max_views": { "$max": "$articles.views" }            
+				"_id": "$article",
+				"lang": { "$first": "$lang" },  
+				"max_views": { "$max": "$views" }            
 			}
 		},
 		{
 			"$project": {
-				"page": "$_id.page", "_id": 0,
-				"lang": "$_id.lang",
+				"page": "$_id", "_id": 0,
+				"lang": 1,
 				"max_views": 1
 			}
 		},
@@ -90,17 +87,17 @@ def get_top_articles(lang):
 		{ "$limit": 5000 }
 	]
 
-	result = wikipedia.aggregate(pipeline)
+	result = list(wikipedia.aggregate(pipeline))
 	return result
 
 
 def load_article(lang, pagename):
 
+	timestamp = time.strftime("%Y%m%d%H%M%S")
 	url = "https://{0}.wikipedia.org/w/index.php?title=Special:Export&action=submit".format(lang)
 	origin = "https://{0}.wikipedia.org".format(lang)
 	referer = "https://{0}.wikipedia.org/wiki/Special:Export".format(lang)
-	filename = "dumps/xml/wikipedia-{0}-{1}.xml".format(lang, pagename)
-	lang_bz2 = "dumps/bz2/pages-articles-{0}.xml.bz2".format(lang)
+	filename = "dumps/xml/wikipedia-{0}-{1}.xml".format(lang, timestamp)
 
 	headers = {
 		"Origin": origin,
@@ -120,28 +117,26 @@ def load_article(lang, pagename):
 		'wpDownload': '1',
 	}
 
-	try:
-		res = requests.post(url, data=payload, headers=headers)
-		with open(filename, 'wb') as f:
-			f.write(res.content)
-		
-		with open(filename, 'rb') as input:
-			with bz2.BZ2File(lang_bz2, 'wb', compresslevel=9) as output:
-				copyfileobj(input, output)
-	except:
-		print('ERROR while fetching or parsing ' + url)
+	res = requests.post(url, data=payload, headers=headers)
+	with open(filename, 'wb') as f:
+		f.write(res.content)
+	
+	with open(filename, 'rb') as input:
+		with bz2.BZ2File(filename+'.bz2', 'wb', compresslevel=9) as output:
+			copyfileobj(input, output)
+
 
 def parse(filename):
 	data = ""
 	with bz2.BZ2File(filename, 'r') as f:
 		for line in f:
 			line = line.decode('utf-8')
-				data += line
-				if line.count('</doc>'):
-					m = article_rgx.search(data)
-					if m:
-						yield m.groupdict()
-					data = ""
+			data += line
+			if line.count('</doc>'):
+				m = article_rgx.search(data)
+				if m:
+					yield m.groupdict()
+				data = ""
 
 
 def main():
@@ -149,11 +144,12 @@ def main():
 	insert_top_articles()
 
 	# Get aggregated top articles for each language.
-	articles = [get_top_articles(lang) for lang in code_lang_map.keys()]
+	for lang in code_lang_map.keys():
+		result = get_top_articles(lang)
+		for article in result:
+			pagename = article['page']
+			load_article(lang, pagename)
 
-	# Grab articles data and write to bz2 file for each language
-	for article in articles:
-		load_article(article['lang'], article['page'])
 
 	# Parse files
   
