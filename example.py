@@ -1,4 +1,3 @@
-# -*- coding: utf8 -*-
 import pickle
 import bz2
 
@@ -34,7 +33,7 @@ def load_data():
     """Load the wikipedia articles."""
 
     f = bz2.BZ2File('features.pkl.bz2', 'rb')
-    data = pickle.load(f)
+    data = pickle.load(f, encoding='latin1')
     f.close()
     return data['X1'], data['X2'], data['y1'], data['y2']
 
