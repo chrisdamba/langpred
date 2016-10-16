@@ -115,7 +115,7 @@ def load_articles(lang, pagelist):
     url = "https://{0}.wikipedia.org/w/index.php?title=Special:Export&action=submit".format(lang)
     origin = "https://{0}.wikipedia.org".format(lang)
     referer = "https://{0}.wikipedia.org/wiki/Special:Export".format(lang)
-    filename = "dumps/wikipedia-{0}.xml".format(lang)
+    filename = "dumps/{0}.xml".format(lang)
     pages = '\n'.join(pagelist)
 
     headers = {
@@ -145,10 +145,6 @@ def load_articles(lang, pagelist):
             copyfileobj(input, output)
     os.remove(filename)
 
-    '''
-    return list(parse_bz2(filename+'.bz2'))
-
-    '''
     return filename + '.bz2'
 
 
