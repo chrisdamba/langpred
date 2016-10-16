@@ -15,13 +15,11 @@ import requests
 import subprocess
 import sys
 import time
-from datetime import timedelta, date
 from lang_map import code_lang_map
 from os import listdir
 from os.path import isfile, join
 from pymongo import InsertOne, MongoClient
 from shutil import copyfileobj
-from uncurl import parse
 from WikiExtractor import process_dump
 
 
